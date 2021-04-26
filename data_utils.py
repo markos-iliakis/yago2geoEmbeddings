@@ -1,130 +1,362 @@
-import pandas as pd
-from rdflib import Graph
+from collections import defaultdict
+import pickle as pickle
 import json
+from multiprocessing import Process
+from os import path
+
+from graph import Query
 
 
-def krOnlyTopological(in_path, out_path):
-    data = read_triples(in_path)
-    data = data[(data['head'].str.contains("kr.di.uoa.gr")) & (data['tail'].str.contains("kr.di.uoa.gr"))]
-    data.to_csv(out_path + 'krOnly_OS_topological.nt', index=False, sep=" ")
-    return out_path + 'krOnly_OS_topological.nt'
+# from netquery.spatialcontext import SpatialContext
+
+def load_queries(data_file, keep_graph=False):
+    '''
+    1. read query method
+    Read query file as a list of Query object
+    '''
+    raw_info = pickle.load(open(data_file, "rb"))
+    return [Query.deserialize(info, keep_graph=keep_graph) for info in raw_info]
 
 
-def read_triples(in_path):
-    data = pd.read_csv(in_path, sep=" ")
-    data.columns = ['head', 'relation', 'tail', '.']
+def load_queries_by_formula(data_file, keep_graph=True):
+    '''
+    2. read query method
+    Read query file as a dict
+    key: query type
+    value: a dict()
+        key: formula template
+        value: the query object
+    '''
+    if path.exists(data_file):
+        raw_info = pickle.load(open(data_file, "rb"))
+        queries = defaultdict(lambda: defaultdict(list))
+        for raw_query in raw_info:
+            query = Query.deserialize(raw_query, keep_graph=keep_graph)
+            queries[query.formula.query_type][query.formula].append(query)
+        return queries
+    else:
+        return None
+
+
+def load_queries_by_type(data_file, keep_graph=True):
+    '''
+    3. read query method
+    Read query file as a dict
+    key: query type
+    value: a list of Query object
+    '''
+    raw_info = pickle.load(open(data_file, "rb"))
+    queries = defaultdict(list)
+    for raw_query in raw_info:
+        query = Query.deserialize(raw_query, keep_graph=keep_graph)
+        queries[query.formula.query_type].append(query)
+    return queries
+
+
+def load_test_queries_by_formula(data_file, keep_graph=False):
+    '''
+    4. read query method
+    Read query file as a dict
+    key: "full_neg" (full negative sample) or "one_neg" (only one negative sample)
+    value: a dict()
+        key: query type
+        value: a dict()
+            key: formula template
+            value: the query object
+    '''
+    if path.exists(data_file):
+        raw_info = pickle.load(open(data_file, "rb"))
+        queries = {"full_neg": defaultdict(lambda: defaultdict(list)),
+                   "one_neg": defaultdict(lambda: defaultdict(list))}
+        for raw_query in raw_info:
+            neg_type = "full_neg" if len(raw_query[1]) > 1 else "one_neg"
+            query = Query.deserialize(raw_query, keep_graph=keep_graph)
+            queries[neg_type][query.formula.query_type][query.formula].append(query)
+        return queries
+    else:
+        return None
+
+
+def json_load(filepath):
+    with open(filepath, "r") as json_file:
+        data = json.load(json_file)
     return data
 
 
-def entity2id(in_path, out_path):
-    data = read_triples(in_path)
-    s = set(set(data['head']).union(set(data['tail'])))
-    df = pd.DataFrame([[d, i] for d, i in zip(s, range(len(s)))])
-    df.to_csv(out_path + 'entity2id.txt', index=False, sep=" ")
-    return out_path + 'entity2id.txt'
+def json_dump(data, filepath, pretty_format=True):
+    with open(filepath, 'w') as fw:
+        if pretty_format:
+            json.dump(data, fw, indent=2, sort_keys=True)
+        else:
+            json.dump(data, fw)
 
 
-def relation2id(in_path, out_path):
-    data = read_triples(in_path)
-    s = set(data['relation'])
-    df = pd.DataFrame([d, i] for d, i in zip(s, range(len(s))))
-    df.to_csv(out_path + 'relation2id.txt', index=False, sep=" ")
-    return out_path + 'relation2id.txt'
+def pickle_dump(obj, pickle_filepath):
+    with open(pickle_filepath, "wb") as f:
+        pickle.dump(obj, f, protocol=2)
 
 
-def entity2type(in_path, out_path):
-    # Read types
-    ent2type = list()
-    with open(in_path) as file:
-        file = [li.strip() for li in file if li.strip()]
-        for line in file:
-            if line.startswith('a'):
-                ent2type.append([head[0], line.split()[1]])
-            else:
-                head = [line]
-
-    cols = list(list(zip(*ent2type))[0])
-    v = list(list(zip(*ent2type))[1])
-    with open(out_path + 'entity2type.json', 'w') as file:
-        js = json.dumps([{cols[i]: v[i]} for i in range(len(cols))])
-        js = js.replace("[{", "{\n\t")
-        js = js.replace("}, {", ",\n\t")
-        js = js.replace("}]", "\n}")
-        file.write(js)
-    return out_path + 'entity2type.json'
+def pickle_load(pickle_filepath):
+    with open(pickle_filepath, "rb") as f:
+        obj = pickle.load(f)
+    return obj
 
 
-def find_class(classes_path, entity):
-    with open(classes_path) as json_file:
-        data = json.load(json_file)
-        return data[entity]
+def sample_clean_test(graph_loader, data_dir, num_test_query=10000, num_val_query=1000, id2geo=None):
+    '''
+    Given graph_data.pkl, testing and validation edge data, sampling 2 and 3 edges testing/validation queries and save them on disk
+    Args:
+        graph_loader: a function which load the graph data, graph_data.pkl
+        data_dir: the direction which to read testing and validation edge data, and dump the sampled query data
+        num_test_query: the total number of test query to be generated
+        num_val_query: the total number of validation query to be generated
+        id2geo: node id => [longitude, latitude], If not None, generate geographic queries with target node has coordinates
+    '''
+    # load the graph data into training and testing graph
+    print("load the graph data into training and testing graph")
+    train_graph = graph_loader()
+    test_graph = graph_loader()
+    # load the validation and testing edges which need to be deleted from training graph
+    print("load the validation and testing edges which need to be deleted from training graph")
+    test_edges = load_queries(data_dir + "/test_edges.pkl")
+    val_edges = load_queries(data_dir + "/val_edges.pkl")
+    # remove all testing and validation edges from the training graph
+    print("remove test/valid from train graph")
+    train_graph.remove_edges([(q.target_node, q.formula.rels[0], q.anchor_nodes[0]) for q in test_edges + val_edges])
+    # Sampling 2 edges testing and validation queries
+    print("Sampling 2 edges testing queries")
+    test_queries_2 = test_graph.sample_test_queries(train_graph, ["2-chain", "2-inter"], num_test_query * 9 / 10, 1,
+                                                    id2geo=id2geo)
+    test_queries_2.extend(
+        test_graph.sample_test_queries(train_graph, ["2-chain", "2-inter"], num_test_query / 10, 1000, id2geo=id2geo))
+    print("Sampling 2 edges validation queries")
+    # val_queries_2 = test_graph.sample_test_queries(train_graph, ["2-chain", "2-inter"], 10, 900)
+    val_queries_2 = test_graph.sample_test_queries(train_graph, ["2-chain", "2-inter"], num_val_query * 9 / 10, 1,
+                                                   id2geo=id2geo)
+    val_queries_2.extend(
+        test_graph.sample_test_queries(train_graph, ["2-chain", "2-inter"], num_val_query / 10, 1000, id2geo=id2geo))
+    val_queries_2 = list(set(val_queries_2) - set(test_queries_2))
+    print(len(val_queries_2))
+    # Sampling 3 edges testing and validation queries
+    print("Sampling 3 edges testing queries")
+    test_queries_3 = test_graph.sample_test_queries(train_graph,
+                                                    ["3-chain", "3-inter", "3-inter_chain", "3-chain_inter"],
+                                                    num_test_query * 9 / 10, 1, id2geo=id2geo)
+    test_queries_3.extend(
+        test_graph.sample_test_queries(train_graph, ["3-chain", "3-inter", "3-inter_chain", "3-chain_inter"],
+                                       num_test_query / 10, 1000, id2geo=id2geo))
+    print("Sampling 3 edges validation queries")
+    val_queries_3 = test_graph.sample_test_queries(train_graph,
+                                                   ["3-chain", "3-inter", "3-inter_chain", "3-chain_inter"],
+                                                   num_val_query * 9 / 10, 1, id2geo=id2geo)
+    val_queries_3.extend(
+        test_graph.sample_test_queries(train_graph, ["3-chain", "3-inter", "3-inter_chain", "3-chain_inter"],
+                                       num_val_query / 10, 1000, id2geo=id2geo))
+    val_queries_3 = list(set(val_queries_3) - set(test_queries_3))
+    print(len(val_queries_3))
+    print("Dumping 2/3 edges testing/validation queries")
+    # pickle.dump([q.serialize() for q in test_queries_2], open(data_dir + "/test_queries_2-newclean.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
+    # pickle.dump([q.serialize() for q in test_queries_3], open(data_dir + "/test_queries_3-newclean.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
+    # pickle.dump([q.serialize() for q in val_queries_2], open(data_dir + "/val_queries_2-newclean.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
+    # pickle.dump([q.serialize() for q in val_queries_3], open(data_dir + "/val_queries_3-newclean.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
+    if id2geo is not None:
+        file_postfix = "-geo"
+    else:
+        file_postfix = ""
+    pickle.dump([q.serialize() for q in test_queries_2],
+                open(data_dir + "/test_queries_2{}.pkl".format(file_postfix), "wb"), protocol=pickle.HIGHEST_PROTOCOL)
+    pickle.dump([q.serialize() for q in test_queries_3],
+                open(data_dir + "/test_queries_3{}.pkl".format(file_postfix), "wb"), protocol=pickle.HIGHEST_PROTOCOL)
+    pickle.dump([q.serialize() for q in val_queries_2],
+                open(data_dir + "/val_queries_2{}.pkl".format(file_postfix), "wb"), protocol=pickle.HIGHEST_PROTOCOL)
+    pickle.dump([q.serialize() for q in val_queries_3],
+                open(data_dir + "/val_queries_3{}.pkl".format(file_postfix), "wb"), protocol=pickle.HIGHEST_PROTOCOL)
 
 
-def find_id(file_path, row):
-    data = pd.read_csv(file_path, sep=" ")
-    data.columns = ['data', 'id']
-    return data[data.data == row].id
+def clean_test(train_queries, test_queries):
+    '''
+    Delete queries in test_queries which also appear in the train_queries
+    '''
+    for query_type in train_queries:
+        train_set = set(train_queries[query_type])
+        test_queries[query_type] = [q for q in test_queries[query_type] if not q in train_set]
+    return test_queries
 
 
-def make_triples(triples_path, classes_path, relationsID_path, entitiesID_path, out_path):
-    # Read the triples
-    data = read_triples(triples_path)
-
-    # Read the relations to id's
-    relations = pd.read_csv(relationsID_path, sep=" ")
-    relations.columns = ['relation', 'id']
-
-    # Read the entities to id's
-    entities = pd.read_csv(entitiesID_path, sep=" ")
-    entities.columns = ['entity', 'id']
-
-    # Open the classes json
-    with open(classes_path) as json_file:
-        classes = json.load(json_file)
-
-        # for each relation find its head and tail classes and head relation tail id's
-        custom_triples = list()
-        for index, row in data.iterrows():
-
-            head_class = classes[row['head']]
-            tail_class = classes[row['tail']]
-            relation_id = relations[relations.relation == row['relation']].id
-            head_id = entities[entities.entity == row['head']].id
-            tail_id = entities[entities.entity == row['tail']].id
-
-            custom_triples.append((head_id, (head_class, relation_id, tail_class), tail_id))
-
-    df = pd.DataFrame(custom_triples)
-    df.to_csv(out_path + 'custom_triples.txt', index=False, sep=" ")
-
-    return out_path + 'custom_triples.txt'
+def parallel_sample_worker(pid, num_samples, graph, data_dir, is_test, test_edges, mp_result_dir=None, id2geo=None):
+    '''
+    Args:
+        id2geo: node id => [longitude, latitude] 
+                if not None, we sample geographic query with target node as geographic entity
+    '''
+    # I move this to parallel_sample()
+    # if not is_test:
+    #     graph.remove_edges([(q.target_node, q.formula.rels[0], q.anchor_nodes[0]) for q in test_edges])
+    print("Running worker {}".format(pid))
+    queries_2 = graph.sample_queries(2, num_samples, 100 if is_test else 1, verbose=True, id2geo=id2geo)
+    queries_3 = graph.sample_queries(3, num_samples, 100 if is_test else 1, verbose=True, id2geo=id2geo)
+    print("Done running worker, now saving data", pid)
+    if mp_result_dir is None:
+        mp_data_dir = data_dir
+    else:
+        mp_data_dir = mp_result_dir
+    # for q in queries_2:
+    #     print(q.serialize())
+    # print(mp_data_dir + "/queries_2-{:d}.pkl".format(pid))
+    if id2geo is not None:
+        file_postfix = "-geo"
+    else:
+        file_postfix = ""
+    pickle.dump([q.serialize() for q in queries_2],
+                open(mp_data_dir + "/queries_2-{:d}{:s}.pkl".format(pid, file_postfix), "wb"),
+                protocol=pickle.HIGHEST_PROTOCOL)
+    pickle.dump([q.serialize() for q in queries_3],
+                open(mp_data_dir + "/queries_3-{:d}{:s}.pkl".format(pid, file_postfix), "wb"),
+                protocol=pickle.HIGHEST_PROTOCOL)
 
 
-if __name__ == '__main__':
-    triples_path = './yago2geo_uk/os/OS_topological.nt'
-    types_path = './yago2geo_uk/os/OS_new.ttl'
-    data_path = './Data/'
+def parallel_sample(graph, num_workers, samples_per_worker, data_dir, test=False, start_ind=None, mp_result_dir=None,
+                    id2geo=None):
+    '''
+    Use multiprocessing to sample queries
+    Args:
+        graph:
+        num_workers:
+        samples_per_worker: query samples per arity per worker
+        data_dir:
+        test: True/False
+            True: remove the test and val triples from KG
+        id2geo: node id => [longitude, latitude] 
+                if not None, we sample geographic query with target node as geographic entity
+    '''
+    # something wrong here?!!!!! if it is training query sampling, we need to delete the test/validate queries
+    if not test:
+        # if test:
+        print("Loading test/val data..")
+        test_edges = load_queries(data_dir + "/test_edges.pkl")
+        val_edges = load_queries(data_dir + "/val_edges.pkl")
+        # I add this here
+        print("Remove {} edges from the origin KG".format(len(test_edges + val_edges)))
+        graph.remove_edges([(q.target_node, q.formula.rels[0], q.anchor_nodes[0]) for q in test_edges + val_edges])
+    else:
+        test_edges = []
+        val_edges = []
+    proc_range = range(num_workers) if start_ind is None else range(start_ind, num_workers + start_ind)
+    procs = [Process(target=parallel_sample_worker,
+                     args=[i, samples_per_worker, graph, data_dir, test, val_edges + test_edges, mp_result_dir, id2geo])
+             for i in proc_range]
+    for p in procs:
+        p.start()
+    for p in procs:
+        p.join()
+    queries_2 = []
+    queries_3 = []
 
-    classes_path = data_path + 'entity2type.json'
-    new_triples_path = data_path + 'krOnly_OS_topological.nt'
-    relationsID_path = data_path + 'relation2id.txt'
-    entitiesID_path = data_path + 'entity2id.txt'
-    custom_triples = data_path + 'custom_triples.txt'
+    if id2geo is not None:
+        file_postfix = "-geo"
+    else:
+        file_postfix = ""
 
-    # Filter the triples to contain kr.di.uoa.gr
-    # new_triples_path = krOnlyTopological(triples_path, data_path)
+    if mp_result_dir is None:
+        mp_data_dir = data_dir
+    else:
+        mp_data_dir = mp_result_dir
+    for i in range(num_workers):
+        new_queries_2 = load_queries(mp_data_dir + "/queries_2-{:d}{:s}.pkl".format(i, file_postfix), keep_graph=True)
+        queries_2.extend(new_queries_2)
+        new_queries_3 = load_queries(mp_data_dir + "/queries_3-{:d}{:s}.pkl".format(i, file_postfix), keep_graph=True)
+        queries_3.extend(new_queries_3)
+    return queries_2, queries_3
 
-    # Make the entity2id file (from kr only triples)
-    # entitiesID_path = entity2id(new_triples_path, data_path)
 
-    # Make the relation2id file
-    # relationsID_path = relation2id(new_triples_path, data_path)
+def parallel_inter_query_sample_worker(pid, num_samples, graph, data_dir, is_test, max_inter_size=5, mp_result_dir=None,
+                                       id2geo=None):
+    '''
+    Args:
+        id2geo: node id => [longitude, latitude] 
+                if not None, we sample geographic query with target node as geographic entity
+    '''
+    # I move this to parallel_sample()
+    # if not is_test:
+    #     graph.remove_edges([(q.target_node, q.formula.rels[0], q.anchor_nodes[0]) for q in test_edges])
+    print("Running worker", pid)
+    if mp_result_dir is None:
+        mp_data_dir = data_dir
+    else:
+        mp_data_dir = mp_result_dir
 
-    # Make the entity2type file
-    # classes_path = entity2type(types_path, data_path)
+    if id2geo is not None:
+        file_postfix = "-geo"
+    else:
+        file_postfix = ""
 
-    # Make the triples
-    custom_triples = make_triples(new_triples_path, classes_path, relationsID_path, entitiesID_path, data_path)
+    # queries = []
+    for arity in range(2, max_inter_size + 1):
+        queries = graph.sample_inter_queries_by_arity(arity, num_samples, 100 if is_test else 1, verbose=True,
+                                                      id2geo=id2geo)
+        print("worker {:d}: saving {}-inter query".format(pid, arity))
+        pickle.dump([q.serialize() for q in queries],
+                    open(mp_data_dir + "/queries_{:d}-{:d}{:s}.pkl".format(arity, pid, file_postfix), "wb"),
+                    protocol=pickle.HIGHEST_PROTOCOL)
 
-    # Make the graph file
-    print('hi')
+    print("Done running worker {:d}".format(pid))
+    # print("Done running worker, now saving data", pid)
+    # for arity in range(2, max_inter_size+1):
+    #     pickle.dump([q.serialize() for q in queries[arity]], open(mp_data_dir + "/queries_{:d}-{:d}.pkl".format(arity,pid), "wb"), protocol=pickle.HIGHEST_PROTOCOL)
+
+
+def parallel_inter_query_sample(graph, num_workers, samples_per_worker, data_dir, max_inter_size=5, test=False,
+                                start_ind=None, mp_result_dir=None, id2geo=None):
+    '''
+    Use multiprocessing to sample queries
+    Args:
+        graph:
+        num_workers:
+        samples_per_worker: query samples per arity per worker
+        data_dir:
+        test: True/False
+            True: remove the test and val triples from KG
+        id2geo: node id => [longitude, latitude] 
+                if not None, we sample geographic query with target node as geographic entity
+    '''
+    # something wrong here?!!!!! if it is training query sampling, we need to delete the test/validate queries
+    if not test:
+        # if test:
+        print("Loading test/val data..")
+        test_edges = load_queries(data_dir + "/test_edges.pkl")
+        val_edges = load_queries(data_dir + "/val_edges.pkl")
+        # I add this here
+        print("Remove {} edges from the origin KG".format(len(test_edges + val_edges)))
+        graph.remove_edges([(q.target_node, q.formula.rels[0], q.anchor_nodes[0]) for q in test_edges + val_edges])
+    else:
+        test_edges = []
+        val_edges = []
+    proc_range = range(num_workers) if start_ind is None else range(start_ind, num_workers + start_ind)
+    procs = [Process(target=parallel_inter_query_sample_worker,
+                     args=[i, samples_per_worker, graph, data_dir, test, max_inter_size, mp_result_dir, id2geo]) for i
+             in proc_range]
+    for p in procs:
+        p.start()
+    for p in procs:
+        p.join()
+
+    if mp_result_dir is None:
+        mp_data_dir = data_dir
+    else:
+        mp_data_dir = mp_result_dir
+
+    if id2geo is not None:
+        file_postfix = "-geo"
+    else:
+        file_postfix = ""
+
+    queries_dict = dict()
+    for arity in range(2, max_inter_size + 1):
+        queries = []
+        for i in range(num_workers):
+            new_queries = load_queries(mp_data_dir + "/queries_{:d}-{:d}{:s}.pkl".format(arity, i, file_postfix),
+                                       keep_graph=True)
+            queries.extend(new_queries)
+        queries_dict[arity] = queries
+
+    return queries_dict
