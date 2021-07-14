@@ -268,14 +268,14 @@ class Graph:
         self._make_flat_adj_lists()
 
     def _reverse_relation(self, relation):
-        '''
+        """
         reverse the triple template
             relation: ('drug', 'hematopoietic_system_disease', 'drug')
-        '''
+        """
         if self.rid2inverse is None:
-            return (relation[-1], relation[1], relation[0])
+            return relation[-1], relation[1], relation[0]
         else:
-            return (relation[-1], str(self.rid2inverse[int(relation[1])]), relation[0])
+            return relation[-1], str(self.rid2inverse[relation[1]]), relation[0]
 
     def _reverse_edge(self, edge):
         '''
@@ -412,7 +412,7 @@ class Graph:
                 if counter > 100 * num:
                     return self.get_negative_edge_samples(edge, num, rejection_sample=False)
         else:
-            neg_nodes = self.full_sets[edge[1][0]] - self.adj_lists[self._reverse_relation(edge[1])][edge[2]]
+            neg_nodes = self.full_sets[edge[1][0]] - set(self.adj_lists[self._reverse_relation(edge[1])][edge[2]])
         neg_nodes = list(neg_nodes) if len(neg_nodes) <= num else random.sample(list(neg_nodes), num)
         return neg_nodes
 
@@ -535,14 +535,14 @@ class Graph:
             inter_neighs = self.adj_lists[rel_1][query[1][-1]]
             for i in range(2, len(query)):
                 rel = self._reverse_relation(query[i][1])
-                union_neighs = union_neighs.union(self.adj_lists[rel][query[i][-1]])
-                inter_neighs = inter_neighs.intersection(self.adj_lists[rel][query[i][-1]])
+                union_neighs = set(union_neighs).union(self.adj_lists[rel][query[i][-1]])
+                inter_neighs = set(inter_neighs).intersection(self.adj_lists[rel][query[i][-1]])
             if id2geo is None:
                 neg_samples = self.full_sets[query[1][1][0]] - inter_neighs
                 hard_neg_samples = union_neighs - inter_neighs
             else:
                 neg_samples = self.full_sets[query[1][1][0]].intersection(geoset) - inter_neighs
-                hard_neg_samples = union_neighs.intersection(geoset) - inter_neighs
+                hard_neg_samples = set(union_neighs).intersection(geoset) - inter_neighs
             if len(neg_samples) == 0 or len(hard_neg_samples) == 0:
                 return None, None
             return neg_samples, hard_neg_samples
@@ -555,14 +555,14 @@ class Graph:
             chain_rels = [self._reverse_relation(edge[1]) for edge in query[2][::-1]]
             # chain_neighs: all nodes in target node position which satisfy the 2nd chain (reverse) [(a2, p3, e1) (e1, p2, t)]
             chain_neighs = self.get_metapath_neighs(query[2][-1][-1], tuple(chain_rels))
-            union_neighs = union_neighs.union(chain_neighs)
-            inter_neighs = inter_neighs.intersection(chain_neighs)
+            union_neighs = set(union_neighs).union(chain_neighs)
+            inter_neighs = set(inter_neighs).intersection(chain_neighs)
             if id2geo is None:
                 neg_samples = self.full_sets[query[1][1][0]] - inter_neighs
                 hard_neg_samples = union_neighs - inter_neighs
             else:
                 neg_samples = self.full_sets[query[1][1][0]].intersection(geoset) - inter_neighs
-                hard_neg_samples = union_neighs.intersection(geoset) - inter_neighs
+                hard_neg_samples = set(union_neighs).intersection(geoset) - inter_neighs
             if len(neg_samples) == 0 or len(hard_neg_samples) == 0:
                 return None, None
             return neg_samples, hard_neg_samples
@@ -581,11 +581,26 @@ class Graph:
             inter_rel_2 = self._reverse_relation(query[-1][1][1])
             inter_neighs_2 = self.adj_lists[inter_rel_2][query[-1][1][-1]]
 
-            inter_neighs = inter_neighs_1.intersection(inter_neighs_2)
-            union_neighs = inter_neighs_1.union(inter_neighs_2)
+            inter_neighs = set(inter_neighs_1).intersection(inter_neighs_2)
+            union_neighs = set(inter_neighs_1).union(inter_neighs_2)
             rel = self._reverse_relation(query[1][1])
-            pos_nodes = set([n for neigh in inter_neighs for n in self.adj_lists[rel][neigh]])
-            union_pos_nodes = set([n for neigh in union_neighs for n in self.adj_lists[rel][neigh]])
+
+            # pos_nodes = set([n for neigh in inter_neighs for n in self.adj_lists[rel][neigh]])
+            pos_nodes = []
+            for neigh in inter_neighs:
+                if neigh in self.adj_lists[rel]:
+                    for n in self.adj_lists[rel][neigh]:
+                        pos_nodes.append(n)
+            pos_nodes = set(pos_nodes)
+
+            # union_pos_nodes = set([n for neigh in union_neighs for n in self.adj_lists[rel][neigh]])
+            union_pos_nodes = []
+            for neigh in union_neighs:
+                if neigh in self.adj_lists[rel]:
+                    for n in self.adj_lists[rel][neigh]:
+                        union_pos_nodes.append(n)
+            union_pos_nodes = set(union_pos_nodes)
+
             if id2geo is None:
                 neg_samples = self.full_sets[query[1][1][0]] - pos_nodes
                 hard_neg_samples = union_pos_nodes - pos_nodes
@@ -614,8 +629,8 @@ class Graph:
             query: a tuple, (query_type, edge1, edge2, ...), for 3-inter_chain and 3-chain_inter, the 3rd item is a tuple of two edges
         '''
         if start_node is None:
-            start_rel = random.choice(self.adj_lists.keys())
-            node = random.choice(self.adj_lists[start_rel].keys())
+            start_rel = random.choice(list(self.adj_lists.keys()))
+            node = random.choice(list(self.adj_lists[start_rel].keys()))
             mode = start_rel[0]
         else:
             node, mode = start_node
@@ -921,24 +936,24 @@ class Graph:
         inter_neighs = self.adj_lists[rel_1][query[1][-1]]
         for i in range(2, len(query)):
             rel = self._reverse_relation(query[i][1])
-            union_neighs = union_neighs.union(self.adj_lists[rel][query[i][-1]])
-            inter_neighs = inter_neighs.intersection(self.adj_lists[rel][query[i][-1]])
+            union_neighs = set(union_neighs).union(self.adj_lists[rel][query[i][-1]])
+            inter_neighs = set(inter_neighs).intersection(self.adj_lists[rel][query[i][-1]])
         if id2geo is None:
             neg_samples = self.full_sets[query[1][1][0]] - inter_neighs
             hard_neg_samples = union_neighs - inter_neighs
         else:
             geoset = set(id2geo.keys())
             neg_samples = self.full_sets[query[1][1][0]].intersection(geoset) - inter_neighs
-            hard_neg_samples = union_neighs.intersection(geoset) - inter_neighs
+            hard_neg_samples = set(union_neighs).intersection(geoset) - inter_neighs
         if len(neg_samples) == 0 or len(hard_neg_samples) == 0:
             return None, None
         return neg_samples, hard_neg_samples
 
     def get_metapath_neighs(self, node, rels):
         '''
-        Given a center node and a metapath, return a set of node ids which are the end by following the metapath from this center node
+        Given a center node and a metapath, return a set of node ids which are at the end by following the metapath from this center node
         Args:
-            node: a center node id (ancor node) a
+            node: a center node id (ancor node)
             rels: a type of metapath, from the center node, a tuple of triple templates, ((a, p1, t1), (t1, p2, t2), ...)
         Return:
             current_set: a set of node ids which are the end by following the metapath from this center node
@@ -953,8 +968,14 @@ class Graph:
         current_set = [node]
         for rel in rels:
             # for each step, get 1-d neighborhood node set of current_set
-            current_set = set([neigh for n in current_set for neigh in self.adj_lists[rel][n]])
-        # after n step (n=length of metapath), we get a set of nodes who the n-degree neighbors by following the metapath from center node
+            for n in current_set:
+                if n in self.adj_lists[rel]:
+                    current_set = []
+                    for neigh in self.adj_lists[rel][n]:
+                        current_set.append(neigh)
+                    current_set = set(current_set)
+            # current_set = set([neigh for n in current_set for neigh in self.adj_lists[rel][n]])
+        # after n step (n=length of metapath), we get a set of nodes who are the n-degree neighbors by following the metapath from center node
         self.meta_neighs[rels][node] = current_set
         return current_set
 
@@ -1079,11 +1100,11 @@ class Graph:
             neigh_1 = self.adj_lists[self._reverse_relation(query[2][0][1])][query[2][0][-1]]
             neigh_2 = self.adj_lists[self._reverse_relation(query[2][1][1])][query[2][1][-1]]
             if not is_hard:
-                if target_neigh in neigh_1.intersection(neigh_2):
+                if set(target_neigh) in set(neigh_1).intersection(neigh_2):
                     return False
             else:
                 # Something wrong?!!! should be or, not and,
-                if target_neigh in neigh_1.intersection(neigh_2) or not target_neigh in neigh_1.union(neigh_2):
+                if target_neigh in set(neigh_1).intersection(neigh_2) or not target_neigh in set(neigh_1).union(neigh_2):
                     # if target_neigh in neigh_1.intersection(neigh_2) and not target_neigh in neigh_1.union(neigh_2):
                     return False
         return True

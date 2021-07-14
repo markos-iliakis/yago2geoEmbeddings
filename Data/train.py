@@ -1,4 +1,4 @@
-from Data.data_utils import make_graph
+from Data.data_creator import make_graph
 from trainer import *
 
 
@@ -10,10 +10,11 @@ if __name__ == '__main__':
     classes_path = args.data_path + 'entity2type.json'
     entitiesID_path = args.data_path + 'entity2id.txt'
     custom_triples = args.data_path + 'custom_triples.txt'
+    graph_path = args.data_path + 'graph.pkl'
 
 
     print("Loading graph data..")
-    graph, feature_modules, node_maps = make_graph(custom_triples, classes_path, entitiesID_path, args.embed_dim)
+    graph, feature_modules, node_maps = read_graph(graph_path)
     out_dims = {e_type: args.embed_dim for e_type in graph.relations}
 
     trainer = Trainer(args, graph, feature_modules, node_maps, out_dims, console=True)

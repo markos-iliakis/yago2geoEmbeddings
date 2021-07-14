@@ -279,7 +279,7 @@ def run_batch(train_queries, enc_dec, iter_count, batch_size, hard_negatives=Fal
     # Use the num of queries per formula to form a multinomial dist to randomly pick on value
     formula_index = np.argmax(np.random.multinomial(1,
                                                     np.array(num_queries) / denom))
-    formula = train_queries.keys()[formula_index]
+    formula = list(train_queries.keys())[formula_index]
     n = len(train_queries[formula])
     start = (iter_count * batch_size) % n
     end = min(((iter_count + 1) * batch_size) % n, n)

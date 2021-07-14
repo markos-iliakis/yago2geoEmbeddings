@@ -7,8 +7,6 @@ from os import path
 from graph import Query
 
 
-# from netquery.spatialcontext import SpatialContext
-
 def load_queries(data_file, keep_graph=False):
     '''
     1. read query method
@@ -262,9 +260,9 @@ def parallel_sample(graph, num_workers, samples_per_worker, data_dir, test=False
     else:
         mp_data_dir = mp_result_dir
     for i in range(num_workers):
-        new_queries_2 = load_queries(mp_data_dir + "/queries_2-{:d}{:s}.pkl".format(i, file_postfix), keep_graph=True)
+        new_queries_2 = load_queries(mp_data_dir + "queries_2-{:d}{:s}.pkl".format(i, file_postfix), keep_graph=True)
         queries_2.extend(new_queries_2)
-        new_queries_3 = load_queries(mp_data_dir + "/queries_3-{:d}{:s}.pkl".format(i, file_postfix), keep_graph=True)
+        new_queries_3 = load_queries(mp_data_dir + "queries_3-{:d}{:s}.pkl".format(i, file_postfix), keep_graph=True)
         queries_3.extend(new_queries_3)
     return queries_2, queries_3
 
@@ -296,7 +294,7 @@ def parallel_inter_query_sample_worker(pid, num_samples, graph, data_dir, is_tes
                                                       id2geo=id2geo)
         print("worker {:d}: saving {}-inter query".format(pid, arity))
         pickle.dump([q.serialize() for q in queries],
-                    open(mp_data_dir + "/queries_{:d}-{:d}{:s}.pkl".format(arity, pid, file_postfix), "wb"),
+                    open(mp_data_dir + "queries_{:d}-{:d}{:s}.pkl".format(arity, pid, file_postfix), "wb"),
                     protocol=pickle.HIGHEST_PROTOCOL)
 
     print("Done running worker {:d}".format(pid))

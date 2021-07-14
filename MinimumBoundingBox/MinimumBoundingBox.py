@@ -98,17 +98,21 @@ def sort_corners(corners, center):
     # calculate angle of each corner
     angles = []
     for c in corners:
-        p = unit_vector(center, c)
-        angles.append([c, np.arccos(np.matmul([1, 0], p))])  # Find the arc cosine
+        # p = unit_vector(center, c)
+        # angles.append([c, np.arccos(np.matmul([1, 0], p))])  # Find the arc cosine
+        dv = np.array(c) - np.array(center)
+        angles.append([c, atan2(dv[1], dv[0])])
+
 
     # sort the angles
     sorted_corners = sorted(angles, key=lambda x: x[1])
+    # sorted_corners = np.sort(angles, axis=-1)
 
-    rotated_corners = np.array([i[0] for i in sorted_corners])
-    plt.scatter(rotated_corners[0, 0], rotated_corners[0, 1], color='red', linewidths=1)
-    plt.scatter(rotated_corners[2, 0], rotated_corners[2, 1], color='blue', linewidths=1)
-    plt.axis('equal')
-    plt.show()
+    # rotated_corners = np.array([i[0] for i in sorted_corners])
+    # plt.scatter(rotated_corners[0, 0], rotated_corners[0, 1], color='red', linewidths=1)
+    # plt.scatter(rotated_corners[3, 0], rotated_corners[3, 1], color='blue', linewidths=1)
+    # plt.axis('equal')
+    # plt.show()
 
     return [i[0] for i in sorted_corners]
 

@@ -184,9 +184,9 @@ class BilinearBlockDiagMetapathDecoder(nn.Module):
     """
     This is only used for enc_agg_func == "concat"
     Each edge type is represented by two matrix:
-    1) feature matrix for node featur embed
+    1) feature matrix for node feature embed
     2) position matrix for node position embed
-    It can be seen as a block-diagal matrix
+    It can be seen as a block-diag matrix
     compositional relationships are a product matrices.
     """
 

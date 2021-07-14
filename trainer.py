@@ -1,8 +1,9 @@
 from argparse import ArgumentParser
 
+from Data.data_creator import *
 from utils import *
 # from data_utils import make_graph, json_load
-# from data_utils import load_queries_by_formula, load_test_queries_by_formula, load_queries, pickle_load, pickle_dump
+from data_utils import load_queries_by_formula, load_test_queries_by_formula, load_queries, pickle_load, pickle_dump
 from model import QueryEncoderDecoder
 from train_helpers import run_train, run_eval
 
@@ -420,8 +421,9 @@ class Trainer:
             id2extent = None
         else:
             if self.args.geo_info == "projbbox":
-                id2geo = pickle_load(self.args.data_path + "/id2geo_proj.pkl")
-                id2extent = pickle_load(self.args.data_path + "/id2extent_proj.pkl")
+                id2geo = read_id2geo(self.args.data_path + "id2geo.json")
+                # id2extent = pickle_load(self.args.data_path + "/id2extent_proj.pkl")
+                id2extent = None
             else:
                 raise Exception("Unknown geo_info parameters!")
         return id2geo, id2extent
@@ -477,14 +479,14 @@ class Trainer:
         for i in range(2, 4):
             # if not args.kg_train:
             print("Loading training {:s} {:d} triple data..".format(file_postfix, i))
-            train_queries_file = self.args.data_path + "/train_queries_{:d}{:s}.pkl".format(i, file_postfix)
+            train_queries_file = self.args.data_path + "train_queries_{:d}{:s}.pkl".format(i, file_postfix)
             if path.exists(train_queries_file):
                 train_queries.update(load_queries_by_formula(train_queries_file))
             else:
                 print("{} no exist!".format(train_queries_file))
 
             print("Loading validate {:s} {:d} triple data..".format(file_postfix, i))
-            val_queries_file = self.args.data_path + "/val_queries_{:d}{:s}.pkl".format(i, file_postfix)
+            val_queries_file = self.args.data_path + "val_queries_{:d}{:s}.pkl".format(i, file_postfix)
             if path.exists(val_queries_file):
                 i_val_queries = load_test_queries_by_formula(val_queries_file, keep_graph=test_query_keep_graph)
                 val_queries["one_neg"].update(i_val_queries["one_neg"])
@@ -493,7 +495,7 @@ class Trainer:
                 print("{} no exist!".format(val_queries_file))
 
             print("Loading testing {:s} {:d} triple data..".format(file_postfix, i))
-            test_queries_file = self.args.data_path + "/test_queries_{:d}{:s}.pkl".format(i, file_postfix)
+            test_queries_file = self.args.data_path + "test_queries_{:d}{:s}.pkl".format(i, file_postfix)
             if path.exists(test_queries_file):
                 i_test_queries = load_test_queries_by_formula(test_queries_file, keep_graph=test_query_keep_graph)
                 test_queries["one_neg"].update(i_test_queries["one_neg"])
@@ -508,7 +510,7 @@ class Trainer:
             for arity in range(4, self.args.max_arity + 1):
                 print("Loading training {:s} {:d}-inter query data..".format(file_postfix, arity))
                 train_queries.update(load_queries_by_formula(
-                    self.args.data_path + "/train_inter_queries_{:d}{:s}.pkl".format(arity, file_postfix)))
+                    self.args.data_path + "train_inter_queries_{:d}{:s}.pkl".format(arity, file_postfix)))
 
     def load_model(self):
         self.logger.info("Load model from {}".format(self.model_file))
@@ -628,90 +630,3 @@ class Trainer:
                   val_queries_geo=self.val_queries_geo,
                   test_queries_geo=self.test_queries_geo)
         torch.save(self.enc_dec.state_dict(), self.model_file)
-
-    def train_spa_sem_lift(self):
-        run_train_spa_sem_lift(model=self.enc_dec,
-                               optimizer=self.optimizer,
-                               train_queries=self.train_queries,
-                               val_queries=self.val_queries,
-                               test_queries=self.test_queries,
-                               logger=self.logger,
-                               max_burn_in=self.args.max_burn_in,
-                               batch_size=self.args.batch_size,
-                               log_every=100,
-                               val_every=self.args.val_every,
-                               tol=self.args.tol,
-                               max_iter=self.args.max_iter,
-                               inter_weight=self.args.inter_weight,
-                               path_weight=self.args.path_weight,
-                               model_file=self.model_file,
-                               edge_conv=self.args.edge_conv,
-                               geo_train=self.args.geo_train,
-                               spa_sem_lift_loss_weight=self.args.spa_sem_lift_loss_weight,
-                               train_queries_geo=self.train_queries_geo,
-                               val_queries_geo=self.val_queries_geo,
-                               test_queries_geo=self.test_queries_geo)
-        torch.save(self.enc_dec.state_dict(), self.model_file)
-
-    def eval_spa_sem_lift_model(self, flag="TEST"):
-        self.test_auc_detail_log_file = self.args.log_dir + self.args_combine + "--fm_auc_Test.pkl"
-        self.test_geo_auc_detail_log_file = self.args.log_dir + self.args_combine + "--fm_auc_geo_Test.pkl"
-        self.val_auc_detail_log_file = self.args.log_dir + self.args_combine + "--fm_auc_Valid.pkl"
-        self.val_geo_auc_detail_log_file = self.args.log_dir + self.args_combine + "--fm_auc_geo_Valid.pkl"
-
-        self.test_prec_detail_log_file = self.args.log_dir + self.args_combine + "--fm_prec_Test.pkl"
-        self.test_geo_prec_detail_log_file = self.args.log_dir + self.args_combine + "--fm_prec_geo_Test.pkl"
-        self.val_prec_detail_log_file = self.args.log_dir + self.args_combine + "--fm_prec_Valid.pkl"
-        self.val_geo_prec_detail_log_file = self.args.log_dir + self.args_combine + "--fm_prec_geo_Valid.pkl"
-
-        if flag == "TEST":
-            queries = self.test_queries
-            queries_geo = self.test_queries_geo
-
-            auc_detail_log_file = self.test_auc_detail_log_file
-            geo_auc_detail_log_file = self.test_geo_auc_detail_log_file
-
-            prec_detail_log_file = self.test_prec_detail_log_file
-            geo_prec_detail_log_file = self.test_geo_prec_detail_log_file
-
-            tag = "Test"
-        elif flag == "VALID":
-            queries = self.val_queries
-            queries_geo = self.val_queries_geo
-
-            auc_detail_log_file = self.val_auc_detail_log_file
-            geo_auc_detail_log_file = self.val_geo_auc_detail_log_file
-
-            prec_detail_log_file = self.val_prec_detail_log_file
-            geo_prec_detail_log_file = self.val_geo_prec_detail_log_file
-
-            tag = "Valid"
-
-        if self.args.eval_general:
-            if self.args.eval_log:
-                v, aprs, qtype2fm_auc, qtype2fm_q_prec = run_eval_spa_sem_lift(self.enc_dec, queries, 0, self.logger,
-                                                                               eval_detail_log=True,
-                                                                               do_spa_sem_lift=False)
-                # detail_log_file = self.args.log_dir + self.args_combine + "--fmauc_{}.pkl".format(tag)
-                pickle_dump(qtype2fm_auc, auc_detail_log_file)
-                pickle_dump(qtype2fm_q_prec, prec_detail_log_file)
-            else:
-                v, aprs = run_eval_spa_sem_lift(self.enc_dec, queries, 0, self.logger, do_spa_sem_lift=False)
-            self.logger.info(
-                "{} macro-averaged AUC: {:f}, APR: {:f}".format(tag, np.mean(v.values()), np.mean(aprs.values())))
-        if self.args.geo_train:
-            if self.args.eval_geo_log:
-                v_geo, aprs_geo, qtype2fm_auc_geo, qtype2fm_q_prec_geo = run_eval_spa_sem_lift(self.enc_dec,
-                                                                                               queries_geo, 0,
-                                                                                               self.logger,
-                                                                                               geo_train=True,
-                                                                                               eval_detail_log=True,
-                                                                                               do_spa_sem_lift=True)
-                # geo_detail_log_file = self.args.log_dir + self.args_combine + "--fmauc_geo_{}.pkl".format(tag)
-                pickle_dump(qtype2fm_auc_geo, geo_auc_detail_log_file)
-                pickle_dump(qtype2fm_q_prec_geo, geo_prec_detail_log_file)
-            else:
-                v_geo, aprs_geo = run_eval_spa_sem_lift(self.enc_dec, queries_geo, 0, self.logger,
-                                                        geo_train=True, do_spa_sem_lift=True)
-            self.logger.info("GEO {} macro-averaged AUC: {:f}, APR: {:f}".format(tag, np.mean(v_geo.values()),
-                                                                                 np.mean(aprs_geo.values())))

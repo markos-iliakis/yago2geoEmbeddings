@@ -34,7 +34,7 @@ class DirectEncoder(nn.Module):
         feature_modules: a dict of embedding matrix by node type, each embed matrix shape: [num_ent_by_type + 2, embed_dim]
         """
         super(DirectEncoder, self).__init__()
-        for name, module in feature_modules.iteritems():
+        for name, module in feature_modules.items():
             self.add_module("feat-" + name, module)
         self.features = features
 
@@ -90,7 +90,7 @@ class SimpleSpatialEncoder(nn.Module):
             value: a list, [longitude, lantitude]
         """
         super(SimpleSpatialEncoder, self).__init__()
-        for name, module in feature_modules.iteritems():
+        for name, module in feature_modules.items():
             self.add_module("feat-" + name, module)
         self.features = features
 
@@ -742,7 +742,7 @@ class Encoder(nn.Module):
         self.adj_lists = adj_lists
         self.relations = relations
         self.aggregator = aggregator
-        for name, module in feature_modules.iteritems():
+        for name, module in feature_modules.items():
             self.add_module("feat-" + name, module)
         if base_model != None:
             self.base_model = base_model
@@ -763,7 +763,7 @@ class Encoder(nn.Module):
         self.compress_params = {}
         self.lns = {}
         # for each node type
-        for mode, feat_dim in self.feat_dims.iteritems():
+        for mode, feat_dim in self.feat_dims.items():
             # make a type specific layer normalization layer for convolution layer
             if self.layer_norm:
                 self.lns[mode] = LayerNorm(out_dims[mode])
