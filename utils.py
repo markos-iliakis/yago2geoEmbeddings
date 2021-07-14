@@ -18,8 +18,7 @@ import random
 import time
 import math
 
-from encoders import PositionEncoder, ExtentPositionEncoder, DirectEncoder, NodeEncoder, \
-    NodeAndLocationEncoder, Encoder
+from encoders import PositionEncoder, ExtentPositionEncoder, DirectEncoder, NodeEncoder
 
 from module import MultiLayerFeedForwardNN
 

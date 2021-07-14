@@ -228,8 +228,7 @@ class BilinearBlockDiagMetapathDecoder(nn.Module):
         '''
         # act: [batch_size, embed_dim]
         act = embeds1.t()
-        feat_act, pos_act = torch.split(act,
-                                        [self.feat_dims[rels[0][0]], self.spa_embed_dim], dim=1)
+        feat_act, pos_act = torch.split(act, [self.feat_dims[rels[0][0]], self.spa_embed_dim], dim=1)
         for i_rel in rels:
             feat_act = feat_act.mm(self.feat_mats[i_rel])
             pos_act = pos_act.mm(self.pos_mats[i_rel])
