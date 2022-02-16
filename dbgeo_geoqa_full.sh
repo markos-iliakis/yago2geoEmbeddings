@@ -29,7 +29,7 @@ python3 -m Data.train.py \
   --inter_decoder_atten_act leakyrelu \
   --inter_decoder_atten_f_act sigmoid \
   --inter_decoder_atten_num 1 \
-  --device cpu \
+  --device gpu \
   --opt adam \
   --lr 0.001 \
   --batch_size 2048 \

@@ -1,5 +1,16 @@
 from Data.data_creator import make_graph
 from trainer import *
+import graph
+
+
+def my_test(trainer):
+    # 1260|('<http://kr_di_uoa_gr/yago2geo/ontology/OS_DistrictWard>', 4, '<http://kr_di_uoa_gr/yago2geo/ontology/OS_DistrictWard>')|42310
+    # <http://kr_di_uoa_gr/yago2geo/resource/osentity_Harston_and_Hauxton_Ward_1260> 1260
+    # <http://www_opengis_net/ont/geosparql#sfTouches> 4
+    # <http://kr_di_uoa_gr/yago2geo/resource/osentity_The_Shelfords_and_Stapleford_Ward_42310> 42310
+
+    f = graph.Formula('1-chain', (('<http://kr_di_uoa_gr/yago2geo/ontology/OS_DistrictWard>', '4', '<http://kr_di_uoa_gr/yago2geo/ontology/OS_DistrictWard>'),))
+    query = graph.Query(('1-chain', (1260, ('<http://kr_di_uoa_gr/yago2geo/ontology/OS_DistrictWard>', '4', '<http://kr_di_uoa_gr/yago2geo/ontology/OS_DistrictWard>'), 42310)))
 
 
 if __name__ == '__main__':
@@ -10,8 +21,7 @@ if __name__ == '__main__':
     classes_path = args.data_path + 'entity2type.json'
     entitiesID_path = args.data_path + 'entity2id.txt'
     custom_triples = args.data_path + 'custom_triples.txt'
-    graph_path = args.data_path + 'graph.pkl'
-
+    graph_path = args.data_path + 'testing_graph.pkl'
 
     print("Loading graph data..")
     graph, feature_modules, node_maps = read_graph(graph_path)
@@ -36,6 +46,8 @@ if __name__ == '__main__':
     print("Training ...")
     # train NN model
     trainer.train()
+
+    my_test(trainer)
 
     trainer.logger.info("geo_info: {}".format(trainer.args.geo_info))
     trainer.logger.info("lr: {:f}".format(trainer.args.lr))

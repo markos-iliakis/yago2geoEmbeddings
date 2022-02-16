@@ -28,9 +28,14 @@ def load_queries_by_formula(data_file, keep_graph=True):
     if path.exists(data_file):
         raw_info = pickle.load(open(data_file, "rb"))
         queries = defaultdict(lambda: defaultdict(list))
+        i = 0
         for raw_query in raw_info:
+            i += 1
             query = Query.deserialize(raw_query, keep_graph=keep_graph)
             queries[query.formula.query_type][query.formula].append(query)
+            # if i > 4:
+            #     print('Keeping 5')
+            #     break
         return queries
     else:
         return None
@@ -48,6 +53,8 @@ def load_queries_by_type(data_file, keep_graph=True):
     for raw_query in raw_info:
         query = Query.deserialize(raw_query, keep_graph=keep_graph)
         queries[query.formula.query_type].append(query)
+        # print('Keeping 1')
+        # break
     return queries
 
 
@@ -67,9 +74,17 @@ def load_test_queries_by_formula(data_file, keep_graph=False):
         queries = {"full_neg": defaultdict(lambda: defaultdict(list)),
                    "one_neg": defaultdict(lambda: defaultdict(list))}
         for raw_query in raw_info:
-            neg_type = "full_neg" if len(raw_query[1]) > 1 else "one_neg"
+            # neg_type = "full_neg" if len(raw_query[1]) > 1 else "one_neg"
+            if len(raw_query[1]) > 1:
+                neg_type = "full_neg"
+            elif len(raw_query[1]) == 1:
+                neg_type = "one_neg"
+            else:
+                continue
             query = Query.deserialize(raw_query, keep_graph=keep_graph)
             queries[neg_type][query.formula.query_type][query.formula].append(query)
+            # print('Keeping 1')
+            # break
         return queries
     else:
         return None

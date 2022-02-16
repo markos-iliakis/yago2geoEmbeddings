@@ -252,10 +252,8 @@ def eval_perc_queries(test_queries, enc_dec, batch_size=1000, hard_negatives=Fal
 
             # the 1st batch_queries is the positive query-target
             # the 2nd               is the negative query-target
-            batch_scores = enc_dec.forward(formula,
-                                           batch_queries + [b for i, b in enumerate(batch_queries) for _ in
-                                                            range(lengths[i])],
-                                           [q.target_node for q in batch_queries] + negatives)
+            batch_scores = enc_dec.forward(formula, batch_queries + [b for i, b in enumerate(batch_queries) for _ in
+                                            range(lengths[i])], [q.target_node for q in batch_queries] + negatives)
             batch_scores = batch_scores.data.tolist()
             # batch_perc_scores: 
             #       a list of percentile rank score per query, APR are the average of all these score
@@ -390,7 +388,7 @@ def get_encoder(depth, graph, out_dims, feature_modules,
     if depth < 0 or depth > 3:
         raise Exception("Depth must be between 0 and 3 (inclusive)")
 
-    if depth == 0:
+    if depth == 0:  # Always 0
         if graph.features is not None and feature_modules is not None:
             # 0 layer, directly embedding lookup
             feat_enc = DirectEncoder(graph.features, feature_modules)
@@ -418,42 +416,42 @@ def get_encoder(depth, graph, out_dims, feature_modules,
                                          out_dims=out_dims, agg_type=enc_agg_type)
         # elif spa_enc_type == "simple":
         #     enc = SimpleSpatialEncoder(graph.features, feature_modules, out_dims, id2geo)
-    else:
-        if spa_enc_type != "no":
-            raise Exception("The place encoding is implemented for depth-0 encoder")
-        # 1 GraphSAGE mean aggregator
-        aggregator1 = MeanAggregator(graph.features)
-        # enc1: a GraphSage Layer, forward() will output [embed_dim, num_ent]
-        enc1 = Encoder(graph.features,
-                       graph.feature_dims,
-                       out_dims,
-                       graph.relations,
-                       graph.adj_lists, feature_modules=feature_modules,
-                       aggregator=aggregator1,
-                       device=device)
-        enc = enc1
-        if depth >= 2:
-            # 2 GraphSAGE mean aggregator
-            aggregator2 = MeanAggregator(lambda nodes, mode: enc1(nodes, mode).t().squeeze())
-            enc2 = Encoder(lambda nodes, mode: enc1(nodes, mode).t().squeeze(),
-                           enc1.out_dims,
-                           out_dims,
-                           graph.relations,
-                           graph.adj_lists, base_model=enc1,
-                           aggregator=aggregator2,
-                           device=device)
-            enc = enc2
-            if depth >= 3:
-                # 3 GraphSAGE mean aggregator
-                aggregator3 = MeanAggregator(lambda nodes, mode: enc2(nodes, mode).t().squeeze())
-                enc3 = Encoder(lambda nodes, mode: enc1(nodes, mode).t().squeeze(),
-                               enc2.out_dims,
-                               out_dims,
-                               graph.relations,
-                               graph.adj_lists, base_model=enc2,
-                               aggregator=aggregator3,
-                               device=device)
-                enc = enc3
+    # else:
+    #     if spa_enc_type != "no":
+    #         raise Exception("The place encoding is implemented for depth-0 encoder")
+    #     # 1 GraphSAGE mean aggregator
+    #     aggregator1 = MeanAggregator(graph.features)
+    #     # enc1: a GraphSage Layer, forward() will output [embed_dim, num_ent]
+    #     enc1 = Encoder(graph.features,
+    #                    graph.feature_dims,
+    #                    out_dims,
+    #                    graph.relations,
+    #                    graph.adj_lists, feature_modules=feature_modules,
+    #                    aggregator=aggregator1,
+    #                    device=device)
+    #     enc = enc1
+    #     if depth >= 2:
+    #         # 2 GraphSAGE mean aggregator
+    #         aggregator2 = MeanAggregator(lambda nodes, mode: enc1(nodes, mode).t().squeeze())
+    #         enc2 = Encoder(lambda nodes, mode: enc1(nodes, mode).t().squeeze(),
+    #                        enc1.out_dims,
+    #                        out_dims,
+    #                        graph.relations,
+    #                        graph.adj_lists, base_model=enc1,
+    #                        aggregator=aggregator2,
+    #                        device=device)
+    #         enc = enc2
+    #         if depth >= 3:
+    #             # 3 GraphSAGE mean aggregator
+    #             aggregator3 = MeanAggregator(lambda nodes, mode: enc2(nodes, mode).t().squeeze())
+    #             enc3 = Encoder(lambda nodes, mode: enc1(nodes, mode).t().squeeze(),
+    #                            enc2.out_dims,
+    #                            out_dims,
+    #                            graph.relations,
+    #                            graph.adj_lists, base_model=enc2,
+    #                            aggregator=aggregator3,
+    #                            device=device)
+    #             enc = enc3
     return enc
 
 
