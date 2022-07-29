@@ -3,13 +3,11 @@ import scipy
 import scipy.stats as stats
 import torch
 from sklearn.metrics import roc_auc_score
-from decoders import BilinearMetapathDecoder, TransEMetapathDecoder, BilinearDiagMetapathDecoder, \
-    BilinearBlockDiagMetapathDecoder, BilinearBlockDiagPos2FeatMatMetapathDecoder, SetIntersection, \
-    SimpleSetIntersection
+from decoders import BilinearBlockDiagMetapathDecoder, SimpleSetIntersection
 from encoders import *
 from aggregators import MeanAggregator
 from attention import IntersectConcatAttention, IntersectDotProductAttention
-# from graph import _reverse_relation
+
 from module import *
 from SpatialRelationEncoder import *
 # import cPickle as pickle
@@ -22,10 +20,7 @@ from encoders import PositionEncoder, ExtentPositionEncoder, DirectEncoder, Node
 
 from module import MultiLayerFeedForwardNN
 
-from SpatialRelationEncoder import GridCellSpatialRelationEncoder, \
-    HexagonGridCellSpatialRelationEncoder, TheoryGridCellSpatialRelationEncoder, \
-    TheoryDiagGridCellSpatialRelationEncoder, NaiveSpatialRelationEncoder, RBFSpatialRelationEncoder, \
-    GridLookupSpatialRelationEncoder, AodhaSpatialRelationEncoder
+from SpatialRelationEncoder import TheoryGridCellSpatialRelationEncoder
 
 """
 Misc utility functions..
@@ -83,7 +78,7 @@ def _get_perc_scores(scores, lengths):
 
     There are N queries, compute percentiel rank (APR) score for each query
     Args:
-        scores: 1st N corespond to cos score for each positive query-target
+        scores: 1st N correspond to cos score for each positive query-target
                 scores[N:] correspond to cos score for each negative query-target which append in order, the number is sum(lengths)
         lengths: a list of N int, each indicate the negative sample size for this query
     Return:
@@ -779,44 +774,7 @@ def get_spa_encoder(args, geo_info, spa_enc_type, id2geo, spa_embed_dim, coord_d
         use_post_mat = True
     else:
         use_post_mat = False
-    if spa_enc_type == "gridcell":
-        ffn = get_ffn(args,
-                      input_dim=int(4 * frequency_num),
-                      f_act=f_act,
-                      context_str="GridCellSpatialRelationEncoder")
-        spa_enc = GridCellSpatialRelationEncoder(
-            spa_embed_dim,
-            coord_dim=coord_dim,
-            frequency_num=frequency_num,
-            max_radius=max_radius,
-            min_radius=min_radius,
-            freq_init=freq_init,
-            ffn=ffn,
-            device=device)
-    elif spa_enc_type == "gridcellnonorm":
-        ffn = get_ffn(args,
-                      input_dim=int(4 * frequency_num),
-                      f_act=f_act,
-                      context_str="GridNoNormCellSpatialRelationEncoder")
-        # spa_enc = GridNoNormCellSpatialRelationEncoder(
-        #     spa_embed_dim,
-        #     coord_dim = coord_dim,
-        #     frequency_num = frequency_num,
-        #     max_radius = max_radius,
-        #     min_radius = min_radius,
-        #     freq_init = freq_init,
-        #     ffn=ffn,
-        #     device=device)
-    elif spa_enc_type == "hexagridcell":
-        spa_enc = HexagonGridCellSpatialRelationEncoder(
-            spa_embed_dim,
-            coord_dim=coord_dim,
-            frequency_num=frequency_num,
-            max_radius=max_radius,
-            dropout=args.dropout,
-            f_act=f_act,
-            device=device)
-    elif spa_enc_type == "theory":
+    if spa_enc_type == "theory":
         ffn = get_ffn(args,
                       input_dim=int(6 * frequency_num),
                       f_act=f_act,
@@ -829,126 +787,6 @@ def get_spa_encoder(args, geo_info, spa_enc_type, id2geo, spa_embed_dim, coord_d
             min_radius=min_radius,
             freq_init=freq_init,
             ffn=ffn,
-            device=device)
-    elif spa_enc_type == "theorydiag":
-        spa_enc = TheoryDiagGridCellSpatialRelationEncoder(
-            spa_embed_dim,
-            coord_dim=coord_dim,
-            frequency_num=frequency_num,
-            max_radius=max_radius,
-            min_radius=min_radius,
-            dropout=args.dropout,
-            f_act=f_act,
-            freq_init=freq_init,
-            use_layn=use_layn,
-            use_post_mat=use_post_mat,
-            device=device)
-    elif spa_enc_type == "naive":
-        extent = get_spatial_context(id2geo, geo_info=geo_info)
-        ffn = get_ffn(args,
-                      input_dim=2,
-                      f_act=f_act,
-                      context_str="NaiveSpatialRelationEncoder")
-        spa_enc = NaiveSpatialRelationEncoder(
-            spa_embed_dim,
-            extent=extent,
-            coord_dim=coord_dim,
-            ffn=ffn,
-            device=device)
-    # elif spa_enc_type == "polar":
-    #     ffn = get_ffn(args,
-    #         input_dim=2,
-    #         f_act = f_act,
-    #         context_str = "PolarCoordSpatialRelationEncoder")
-    #     spa_enc = PolarCoordSpatialRelationEncoder(spa_embed_dim, coord_dim = coord_dim, ffn = ffn)
-    # elif spa_enc_type == "polardist":
-    #     ffn = get_ffn(args,
-    #         input_dim=1,
-    #         f_act = f_act,
-    #         context_str = "PolarDistCoordSpatialRelationEncoder")
-    #     spa_enc = PolarDistCoordSpatialRelationEncoder(spa_embed_dim, coord_dim = coord_dim, ffn = ffn)
-    # elif spa_enc_type == "polargrid":
-    #     ffn = get_ffn(args,
-    #         input_dim=int(2 * frequency_num),
-    #         f_act = f_act,
-    #         context_str = "PolarGridCoordSpatialRelationEncoder")
-    #     spa_enc = PolarGridCoordSpatialRelationEncoder(
-    #         spa_embed_dim, 
-    #         coord_dim = coord_dim, 
-    #         frequency_num = frequency_num,
-    #         max_radius = max_radius,
-    #         min_radius = min_radius,
-    #         freq_init = freq_init,
-    #         ffn=ffn)
-    elif spa_enc_type == "rbf":
-        extent = get_spatial_context(id2geo, geo_info=geo_info)
-        ffn = get_ffn(args,
-                      input_dim=num_rbf_anchor_pts,
-                      f_act=f_act,
-                      context_str="RBFSpatialRelationEncoder")
-        spa_enc = RBFSpatialRelationEncoder(
-            id2geo=id2geo,
-            spa_embed_dim=spa_embed_dim,
-            coord_dim=coord_dim,
-            anchor_sample_method=anchor_sample_method,
-            num_rbf_anchor_pts=num_rbf_anchor_pts,
-            rbf_kernal_size=rbf_kernal_size,
-            rbf_kernal_size_ratio=0,  # we just use 0, because this is only used for global pos enc
-            extent=extent,
-            ffn=ffn,
-            device=device)
-    # elif spa_enc_type == "distrbf":
-    #     spa_enc = DistRBFSpatialRelationEncoder(
-    #         spa_embed_dim, coord_dim = coord_dim,
-    #         num_rbf_anchor_pts = num_rbf_anchor_pts, rbf_kernal_size = rbf_kernal_size, max_radius = max_radius,
-    #         dropout = dropout, f_act = f_act)
-    elif spa_enc_type == "gridlookup":
-        ffn = get_ffn(args,
-                      input_dim=spa_embed_dim,
-                      f_act=f_act,
-                      context_str="GridLookupSpatialRelationEncoder")
-
-        extent = get_spatial_context(id2geo, geo_info=geo_info)
-
-        spa_enc = GridLookupSpatialRelationEncoder(
-            spa_embed_dim,
-            coord_dim=coord_dim,
-            interval=min_radius,
-            extent=extent,
-            ffn=ffn,
-            device=device)
-    elif spa_enc_type == "gridlookupnoffn":
-        extent = get_spatial_context(id2geo, geo_info=geo_info)
-
-        spa_enc = GridLookupSpatialRelationEncoder(
-            spa_embed_dim,
-            coord_dim=coord_dim,
-            interval=min_radius,
-            extent=extent,
-            ffn=None,
-            device=device)
-    # elif spa_enc_type == "polargridlookup":
-    #     assert model_type == "relative"
-    #     ffn = get_ffn(args,
-    #         input_dim=args.spa_embed_dim,
-    #         f_act = f_act,
-    #         context_str = "PolarGridLookupSpatialRelationEncoder")
-    #     spa_enc = PolarGridLookupSpatialRelationEncoder(
-    #         spa_embed_dim, 
-    #         coord_dim = coord_dim, 
-    #         max_radius = max_radius, 
-    #         frequency_num = frequency_num, 
-    #         ffn = ffn)
-    elif spa_enc_type == "aodha":
-        extent = get_spatial_context(id2geo, geo_info=geo_info)
-        spa_enc = AodhaSpatialRelationEncoder(
-            spa_embed_dim,
-            extent=extent,
-            coord_dim=coord_dim,
-            num_hidden_layers=args.num_hidden_layer,
-            hidden_dim=args.hidden_dim,
-            use_post_mat=use_post_mat,
-            f_act=f_act,
             device=device)
     elif spa_enc_type == "none":
         assert spa_embed_dim == 0

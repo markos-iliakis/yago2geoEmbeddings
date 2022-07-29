@@ -67,7 +67,7 @@ if __name__ == '__main__':
 
     print('Creating Projection Operator..')
     # decoder-projection
-    dec =BilinearBlockDiagMetapathDecoder(graph.relations, dims=model_out_dims, feat_dims=out_dims, spa_embed_dim=64)
+    dec = BilinearBlockDiagMetapathDecoder(graph.relations, dims=model_out_dims, feat_dims=out_dims, spa_embed_dim=64)
 
     print('Creating Intersection Operator..')
     # intersection-attention

@@ -17,14 +17,14 @@ def load_queries(data_file, keep_graph=False):
 
 
 def load_queries_by_formula(data_file, keep_graph=True):
-    '''
+    """
     2. read query method
     Read query file as a dict
     key: query type
     value: a dict()
         key: formula template
         value: the query object
-    '''
+    """
     if path.exists(data_file):
         raw_info = pickle.load(open(data_file, "rb"))
         queries = defaultdict(lambda: defaultdict(list))

@@ -192,7 +192,7 @@ def run_train(model, optimizer,
             losses = []
             ema_loss = None
             vals = []
-            if not model_file is None:
+            if model_file is not None:
                 torch.save(model.state_dict(), model_file.replace(".pth", "--edge_conv.pth"))
 
         if edge_conv:
@@ -221,7 +221,8 @@ def run_train(model, optimizer,
         if i >= val_every and i % val_every == 0:
             v, aprs = run_eval(model, val_queries, i, logger)
             logger.info(
-                "Validate macro-averaged AUC: {:f}, APR: {:f}".format(np.mean(list(v.values())), np.mean(list(aprs.values()))))
+                "Validate macro-averaged AUC: {:f}, APR: {:f}".format(np.mean(list(v.values())),
+                                                                      np.mean(list(aprs.values()))))
             if geo_train:
                 logger.info("geo query...")
                 v_geo, aprs_geo = run_eval(model, val_queries_geo, i, logger, geo_train=True)
@@ -243,17 +244,20 @@ def run_train(model, optimizer,
                     torch.save(model.state_dict(), model_file.replace(".pth", "--edge_conv.pth"))
 
     v, aprs = run_eval(model, test_queries, i, logger)
-    logger.info("Test macro-averaged AUC: {:f}, APR: {:f}".format(np.mean(list(v.values())), np.mean(list(aprs.values()))))
+    logger.info(
+        "Test macro-averaged AUC: {:f}, APR: {:f}".format(np.mean(list(v.values())), np.mean(list(aprs.values()))))
     if conv_test is not None:
         logger.info("AUC Improvement from edge conv: {:f}".format((np.mean(list(v.values())) - conv_test) / conv_test))
         logger.info(
-            "APR Improvement from edge conv: {:f}".format((np.mean(list(aprs.values())) - conv_test_apr) / conv_test_apr))
+            "APR Improvement from edge conv: {:f}".format(
+                (np.mean(list(aprs.values())) - conv_test_apr) / conv_test_apr))
 
     if geo_train:
         logger.info("geo query...")
         v_geo, aprs_geo = run_eval(model, test_queries_geo, i, logger, geo_train=True)
         logger.info(
-            "GEO Test macro-averaged AUC: {:f}, APR: {:f}".format(np.mean(list(v_geo.values())), np.mean(list(aprs_geo.values()))))
+            "GEO Test macro-averaged AUC: {:f}, APR: {:f}".format(np.mean(list(v_geo.values())),
+                                                                  np.mean(list(aprs_geo.values()))))
         if conv_geo_test is not None:
             logger.info("GEO AUC Improvement from edge conv: {:f}".format(
                 (np.mean(list(v_geo.values())) - conv_geo_test) / conv_geo_test))
@@ -277,8 +281,7 @@ def run_batch(train_queries, enc_dec, iter_count, batch_size, hard_negatives=Fal
     num_queries = [float(len(queries)) for queries in train_queries.values()]
     denom = float(sum(num_queries))
     # Use the num of queries per formula to form a multinomial dist to randomly pick on value
-    formula_index = np.argmax(np.random.multinomial(1,
-                                                    np.array(num_queries) / denom))
+    formula_index = np.argmax(np.random.multinomial(1, np.array(num_queries) / denom))
     formula = list(train_queries.keys())[formula_index]
     n = len(train_queries[formula])
     start = (iter_count * batch_size) % n

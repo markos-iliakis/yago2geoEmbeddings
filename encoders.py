@@ -1,10 +1,4 @@
-import torch
-import torch.nn as nn
-from torch.nn import init
-import torch.nn.functional as F
 import random
-
-from module import *
 from SpatialRelationEncoder import *
 
 """
@@ -61,100 +55,6 @@ class DirectEncoder(nn.Module):
             return embeds.div(norm)
         else:
             return self.features(nodes, mode, offset).t()
-
-
-class SimpleSpatialEncoder(nn.Module):
-    """
-    Encodes a node as a embedding via direct lookup. Encode its geographic coordicate, and sum them up
-    (i.e., this is just like basic node2vec or matrix factorization)
-    """
-
-    def __init__(self, features, feature_modules, out_dims, id2geo):
-        """
-        Initializes the model for a specific graph.
-
-        features         -- function mapping (node_list, features, offset) to feature values
-                            see torch.nn.EmbeddingBag and forward function below docs for offset meaning.
-        feature_modules  -- This should be a map from mode -> torch.nn.EmbeddingBag 
-
-        features(nodes, mode): a embedding lookup function to make a dict() from node type to embeddingbag
-            nodes: a lists of global node id which are in type (mode)
-            mode: node type
-            return: embedding vectors, shape [num_node, embed_dim]
-        feature_modules: a dict of embedding matrix by node type, each embed matrix shape: [num_ent_by_type + 2, embed_dim]
-        out_dims: a dict()
-            key: node type
-            value: embedding dimention
-        id2geo: a dict()
-            key: node id
-            value: a list, [longitude, lantitude]
-        """
-        super(SimpleSpatialEncoder, self).__init__()
-        for name, module in feature_modules.items():
-            self.add_module("feat-" + name, module)
-        self.features = features
-
-        self.id2geo = id2geo
-
-        # as for position encoding, we give a geographic coordinate transformation matrix
-        # this require that different node type have the same embedding dimention
-        self.embed_dim = out_dims[out_dims.keys()[0]]
-        for mode in out_dims:
-            assert out_dims[mode] == self.embed_dim
-        # position encoding weight matrix
-        self.geo_W = nn.Parameter(torch.FloatTensor(2, self.embed_dim))
-        init.xavier_uniform(self.geo_W)
-        self.register_parameter("geo_W", self.geo_W)
-        # position encoding biase tem
-        self.geo_B = nn.Parameter(torch.FloatTensor(1, self.embed_dim, ))
-        init.xavier_uniform(self.geo_B)
-        self.register_parameter("geo_B", self.geo_B)
-
-        # the position embedding for no geographic entity, same as the out-of-vocab token
-        self.nogeo_embed = nn.Parameter(torch.FloatTensor(1, self.embed_dim))
-        init.xavier_uniform(self.nogeo_embed)
-        self.register_parameter("nogeo_embed", self.nogeo_embed)
-
-    def forward(self, nodes, mode, offset=None, **kwargs):
-        """
-        Generates embeddings for a batch of nodes.
-
-        nodes     -- list of nodes
-        mode      -- string desiginating the mode of the nodes
-        offsets   -- specifies how the embeddings are aggregated. 
-                     see torch.nn.EmbeddingBag for format. 
-                     No aggregation if offsets is None
-        """
-
-        if offset is None:
-            # the output is a dict() map: node type --> embedding tensor [num_ent, embed_dim]
-            # t() transpose embedding tensor as [embed_dim, num_ent]
-            embeds = self.features(nodes, mode).t()
-            # calculate the L2-norm for each embedding vector, [1, num_ent]
-            norm = embeds.norm(p=2, dim=0, keepdim=True)
-            # normalize the embedding vectors
-            # shape: [embed_dim, num_ent]
-            ent_embeds = embeds.div(norm.expand_as(embeds))
-        else:
-            ent_embeds = self.features(nodes, mode, offset).t()
-
-        # coord_tensor: [batch_size, 2]
-        # nogeo_khot: [batch_size]
-        coord_tensor, nogeo_khot = geo_lookup(nodes, self.id2geo)
-
-        # pos_embeds: [batch_size, embed_dim]
-        pos_embeds = torch.FloatTensor(coord_tensor).mm(self.geo_W) + self.geo_B
-
-        # nogeo_khot: [batch_size, 1]
-        nogeo_khot = torch.FloatTensor(nogeo_khot).unsqueeze(1)
-        # nogeo_tensor: [batch_size, embed_dim]
-        nogeo_tensor = nogeo_khot * (self.nogeo_embed - self.geo_B)
-
-        pos_embeds = nogeo_tensor + pos_embeds
-        # pos_embeds: [embed_dim, batch_size]
-        pos_embeds = pos_embeds.t()
-
-        return pos_embeds + ent_embeds
 
 
 def geo_lookup(nodes, id2geo, add_dim=-1, id2extent=None, doExtentSample=False):
@@ -494,10 +394,6 @@ class NodeEncoder(nn.Module):
 
             # feat_embeds: [embed_dim, num_ent]
             feat_embeds = self.feat_enc(nodes, mode, offset=offset)
-
-            # # there is no space encoder
-            # if self.pos_enc is None:
-            #     return feat_embeds
 
             # pos_embeds: [embed_dim, num_ent]
             pos_embeds = self.pos_enc(nodes)

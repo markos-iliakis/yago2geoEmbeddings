@@ -65,8 +65,7 @@ class QueryEncoderDecoder(nn.Module):
                 [self.graph._reverse_relation(formula.rels[i]) for i in range(len(formula.rels) - 1, -1, -1)])
             return self.path_dec.forward(
                 self.enc.forward([query.anchor_nodes[0] for query in queries], formula.anchor_modes[0]),
-                self.enc.forward(source_nodes, formula.target_mode),
-                reverse_rels)
+                self.enc.forward(source_nodes, formula.target_mode), reverse_rels)
         # elif formula.query_type == "2-inter" or formula.query_type == "3-inter" or formula.query_type == "3-inter_chain":
         #     target_embeds = self.enc(source_nodes, formula.target_mode)
 
